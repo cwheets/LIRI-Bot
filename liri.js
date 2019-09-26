@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-var fs = require("fs")
+var fs = require("fs");
 
 var axios = require("axios");
 
@@ -10,121 +10,146 @@ var Spotify = require("node-spotify-api");
 
 var spotify = new Spotify(keys.spotify);
 
-var userInput = process.argv[2];
+var inquirer = require("inquirer");
 
-var querySearch = process.argv.slice(3).join(" ");
-var moment = require('moment');
+var moment = require("moment");
 
+async function liriMenu() {
+  const selectAPI = {
+    name: "operation",
+    type: "list",
+    message: "please select an api to search",
+    choices: [
+      "spotify-this-song",
+      "concert-this",
+      "movie-this",
+      "do-what-this-says"
+    ]
+  };
 
-switch (userInput) {
-  case `spotify-this-song`:
-    spotifySearch();
-    break;
-  case `concert-this`:
-    concertSearch();
-    break;
-  case `movie-this`:
-    movieSearch();
-    break;
-  case `do-what-it-says`:
-    Doit();
-    break;
-  default:
-    console.log(`I am unable to respond with a valid request please try:
-                        "spotify-this-song"
-                        "conert-this"
-                        "movie-this"
-                        do-what-it-says
-                    followed by an appropriate message`);
+  const selectSearchTerm = {
+    name: "searchTerm",
+    message: "insert relavent search",
+    type: "input",
+    when: function(answer) {
+      if (answer.operation !== "do-what-this-says") {
+        return true;
+      }
+      return false;
+    }
+  };
+
+  const answer = await inquirer.prompt([selectAPI, selectSearchTerm]);
+
+  var querySearch = answer.searchTerm;
+
+  switch (answer.operation) {
+    case `spotify-this-song`:
+      spotifySearch(querySearch);
+      break;
+    case `concert-this`:
+      concertSearch(querySearch);
+      break;
+    case `movie-this`:
+      movieSearch(querySearch);
+      break;
+    case `do-what-this-says`:
+      Doit();
+      break;
+    default:
+  }
 }
 
-function spotifySearch() {
-  spotify.search({ type: "track", query: querySearch, limit: 1 }, function(
-    err,
-    data
-  ) {
-    if (err) {
-      return console.log("Error occurred: " + err);
-    }
+liriMenu();
 
-    console.log(JSON.stringify(data.tracks.items[0].artists[0].name, null, 2));
-    console.log(JSON.stringify(data.tracks.items[0].album.name, null, 2));
-    console.log(JSON.stringify(data.tracks.items[0].name, null, 2));
-    console.log(JSON.stringify(data.tracks.items[0].preview_url, null, 2));
+function prettify(...args) {
+  args.forEach(arg => {
+    console.log(JSON.stringify(arg, null, 2));
   });
 }
-function movieSearch() {
-  axios
-    .get(
+
+function spotifySearch(querySearch) {
+  return new Promise((resolve, reject) => {
+    spotify.search({ type: "track", query: querySearch, limit: 1 }, function(
+      err,
+      data
+    ) {
+      if (err) {
+        reject(new Error("There was an error with spotify!"));
+      }
+      prettify(
+        data.tracks.items[0].artists[0].name,
+        data.tracks.items[0].album.name,
+        data.tracks.items[0].name,
+        data.tracks.items[0].preview_url
+      );
+      resolve();
+    });
+  });
+}
+
+async function movieSearch(querySearch) {
+  try {
+    const response = await axios.get(
       `http://www.omdbapi.com/?t=${querySearch}&y=&plot=short&apikey=trilogy`
-    )
-    .then(function(response) {
-      console.log(`title: ${response.data.Title}`);
-      console.log(`Release Year: ${response.data.Year}`);
-      console.log(`IMDB score: ${response.data.imdbRating}`);
-      console.log(`Rotten Tomatoes score: ${response.data.Ratings[1].Value}`);
-      console.log(`Country released: ${response.data.Country}`)
-      console.log(`Languages available: ${response.data.Language}`)
-      console.log(`Actors include: ${response.data.Actors}`)
-      console.log(`Plot summary: ${response.data.Plot}`);
-      
-      
-    })
-    .catch(function(error) {
-      if (error.response) {
-        console.log("---------------Data---------------");
-        console.log(error.response.data);
-        console.log("---------------Status---------------");
-        console.log(error.response.status);
-        console.log("---------------Status---------------");
-        console.log(error.response.headers);
-      } else if (error.request) {
-        console.log(error.request);
-      } else {
-        console.log("Error", error.message);
-      }
-      console.log(error.config);
-    });
+    );
+    prettify(
+      `title: ${response.data.Title}`,
+      `Release Year: ${response.data.Year}`,
+      `IMDB score: ${response.data.imdbRating}`,
+      `Rotten Tomatoes score: ${response.data.Ratings[1].Value}`,
+      `Country released: ${response.data.Country}`,
+      `Languages available: ${response.data.Language}`,
+      `Actors include: ${response.data.Actors}`
+    );
+    console.log(
+      `title: ${response.data.Title}`,
+      `Plot summary: ${response.data.Plot}`
+    );
+  } catch (error) {
+    console.log(error);
+  }
 }
-function concertSearch(){
-    axios
-    .get(
+async function concertSearch(querySearch) {
+  try {
+    const response = await axios.get(
       `https://rest.bandsintown.com/artists/${querySearch}/events?app_id=codingbootcamp`
-    )
-    .then(function(response) {
-        for(let i = 0;i < response.data.length; i++){
-            console.log(`Name of venue : ${response.data[i].venue.name}`)
-            console.log(`City: ${response.data[i].venue.city}`)
-            console.log(`Date : ${moment((response.data[i].datetime))}`)
-            console.log(`------------------------------------------`);
-            
-        }
-    })
-    .catch(function(error) {
-      if (error.response) {
-        console.log("---------------Data---------------");
-        console.log(error.response.data);
-        console.log("---------------Status---------------");
-        console.log(error.response.status);
-        console.log("---------------Status---------------");
-        console.log(error.response.headers);
-      } else if (error.request) {
-        console.log(error.request);
-      } else {
-        console.log("Error", error.message);
-      }
-      console.log(error.config);
-    });
+    );
+    for (let i = 0; i < response.data.length; i++) {
+      prettify(
+        `Name of venue : ${response.data[i].venue.name}`,
+        `City: ${response.data[i].venue.city}`,
+        `Date : ${moment(response.data[i].datetime).format("MM/DD/YYYY")}`,
+        `------------------------------------------`
+      );
+    }
+  } catch (error) {
+    console.log(error);
+  }
 }
-function Doit(){
-    fs.readFile("random.txt", "utf8", function(error, data) {
+function Doit() {
+  fs.readFile("random.txt", "utf8", async function(error, data) {
+    if (error) {
+      throw error;
+    }
 
-        if (error) {
-         throw error;
-        }
-        console.log(data);
-      
-      });
-      
+    var lines = data.split("\n");
 
+    for (let i = 0; i < lines.length; i++) {
+      var line = lines[i].replace("\r", "").split(",");
+      var [command, searchTerm] = line;
+
+      switch (command) {
+        case `spotify-this-song`:
+          await spotifySearch(searchTerm);
+          break;
+        case `concert-this`:
+          await concertSearch(searchTerm);
+          break;
+        case `movie-this`:
+          await movieSearch(searchTerm);
+          break;
+      }
+    }
+  });
 }
